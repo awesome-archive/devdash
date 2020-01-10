@@ -19,6 +19,8 @@ type project struct {
 	gscWidget      service
 	githubWidget   service
 	travisCIWidget service
+	feedlyWidget   service
+	gitWidget      service
 	tui            *Tui
 }
 
@@ -58,6 +60,14 @@ func (p *project) WithTravisCI(travisCI *travisCIWidget) {
 	p.travisCIWidget = travisCI
 }
 
+func (p *project) WithFeedly(feedly *feedlyWidget) {
+	p.feedlyWidget = feedly
+}
+
+func (p *project) WithGit(git *gitWidget) {
+	p.gitWidget = git
+}
+
 func (p *project) addDefaultTheme(w Widget) Widget {
 	t := w.typeID()
 
@@ -88,6 +98,7 @@ func (p *project) addDefaultTheme(w Widget) Widget {
 
 // Render all the services' widgets.
 func (p *project) Render(debug bool) {
+	// TODO: use display.box instead of this shortcut
 	err := p.addTitle(p.tui)
 	if err != nil {
 		err = errors.Wrapf(err, "can't add project title %s", p.name)
@@ -99,17 +110,24 @@ func (p *project) Render(debug bool) {
 			for _, w := range col {
 				w = p.addDefaultTheme(w)
 
+				// Map widget prefix with serice
 				switch w.serviceID() {
+				case "display":
+					createWidgets(NewDisplayWidget(), "Display", w, p.tui)
 				case "ga":
-					displayWidget(p.gaWidget, "Google Analytics", w, p.tui)
+					createWidgets(p.gaWidget, "Google Analytics", w, p.tui)
 				case "mon":
-					displayWidget(p.monitorWidget, "Monitor", w, p.tui)
+					createWidgets(p.monitorWidget, "Monitor", w, p.tui)
 				case "gsc":
-					displayWidget(p.gscWidget, "Google Search Console", w, p.tui)
+					createWidgets(p.gscWidget, "Google Search Console", w, p.tui)
 				case "github":
-					displayWidget(p.githubWidget, "Github", w, p.tui)
+					createWidgets(p.githubWidget, "Github", w, p.tui)
 				case "travis":
-					displayWidget(p.travisCIWidget, "Travis", w, p.tui)
+					createWidgets(p.travisCIWidget, "Travis", w, p.tui)
+				case "feedly":
+					createWidgets(p.feedlyWidget, "Feedly", w, p.tui)
+				case "git":
+					createWidgets(p.gitWidget, "Git", w, p.tui)
 				default:
 					DisplayError(p.tui, errors.Errorf("The service %s doesn't exist (yet?)", w.Name))
 				}
@@ -133,7 +151,7 @@ func (p *project) addTitle(tui *Tui) error {
 	return tui.AddProjectTitle(p.name, p.nameOptions)
 }
 
-func displayWidget(s service, name string, w Widget, tui *Tui) {
+func createWidgets(s service, name string, w Widget, tui *Tui) {
 	if s == nil {
 		DisplayError(tui, errors.Errorf("Configuration error - you can't use the widget %s without the service %s.", w.Name, name))
 	} else if err := s.CreateWidgets(w, tui); err != nil {
